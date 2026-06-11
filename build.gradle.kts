@@ -59,6 +59,7 @@ dependencies {
     implementation(libs.okio)
     implementation(libs.json)
     implementation(libs.androidx.collection)
+    implementation("com.squareup.okhttp3:okhttp-brotli:5.4.0")
 
 	api(libs.core.parsers)
     api(libs.jsoup)
