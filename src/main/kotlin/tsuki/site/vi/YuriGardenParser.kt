@@ -106,7 +106,7 @@ internal abstract class YuriGardenParser(
 				else -> "newest" // default
 			})
 
-			if (filter.query.isNotEmpty()) {
+			if (!filter.query.isNullOrEmpty()) {
 				append("&search=")
 				append((filter.query.urlEncoded()))
 			}
@@ -129,14 +129,14 @@ internal abstract class YuriGardenParser(
 				append("&genre=")
 				append(filter.tags.joinToString(separator = ",") { it.key })
 			}
-			if (filter.author.isNotEmpty()) {
+			if (!filter.author.isNullOrEmpty()) {
 				clear()
 
 				append("https://")
 				append(apiSuffix)
 				append("/creators/authors/")
 				append(
-					filter.author.substringAfter("(").substringBefore(")")
+					filter.author?.substringAfter("(")?.substringBefore(")").orEmpty()
 				)
 
 				return@buildString // end of buildString

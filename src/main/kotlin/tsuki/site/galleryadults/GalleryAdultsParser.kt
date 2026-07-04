@@ -64,7 +64,7 @@ internal abstract class GalleryAdultsParser(
             append("https://")
             append(domain)
             when {
-                filter.query.isNotEmpty() -> {
+                !filter.query.isNullOrEmpty() -> {
                     append("/search/?q=")
                     append(filter.query.urlEncoded())
                     append("&")

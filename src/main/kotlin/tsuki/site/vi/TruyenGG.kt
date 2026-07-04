@@ -46,7 +46,7 @@ internal class TruyenGG(context: MangaLoaderContext) : PagedMangaParser(context,
 
 	override suspend fun getListPage(page: Int, order: SortOrder, filter: MangaListFilter): List<Manga> {
 		val url = when {
-			filter.query.isNotEmpty() -> {
+			!filter.query.isNullOrEmpty() -> {
 				buildString {
 					append("https://")
 					append(domain)

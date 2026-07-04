@@ -94,11 +94,11 @@ internal class MoeTruyenUnofficial (context: MangaLoaderContext) :
 			addQueryParameter("limit", pageSize.toString())
 			addEncodedQueryParameter("include", "genres")
 
-			if (filter.query.isNotEmpty() || filter.tags.isNotEmpty() ||
+			if (!filter.query.isNullOrEmpty() || filter.tags.isNotEmpty() ||
 				filter.states.isNotEmpty() || filter.tagsExclude.isNotEmpty()) {
 
 				// keyword
-				if (filter.query.isNotEmpty()) {
+				if (!filter.query.isNullOrEmpty()) {
 					addEncodedQueryParameter("q", filter.query)
 				}
 

@@ -44,7 +44,7 @@ internal class DuaLeoTruyen(context: MangaLoaderContext) :
 			append("https://")
 			append(domain)
 			when {
-				filter.query.isNotEmpty() -> {
+				!filter.query.isNullOrEmpty() -> {
 					append("/tim-kiem.html")
 					append("?key=")
 					append((filter.query.urlEncoded()))

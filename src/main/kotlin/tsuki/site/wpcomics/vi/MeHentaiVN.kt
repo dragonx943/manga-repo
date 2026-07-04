@@ -38,7 +38,7 @@ internal class MeHentaiVN(context: MangaLoaderContext) :
 		val response =
 			when {
 				// url template: https://www.mehentaivn.xyz/tim-truyen?keyword=${query}
-				filter.query.isNotEmpty() -> {
+				!filter.query.isNullOrEmpty() -> {
 					val url = buildString {
 						append("https://")
 						append(domain)

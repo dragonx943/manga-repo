@@ -78,7 +78,7 @@ internal class OTruyenParser(context: MangaLoaderContext) :
             append("https://")
             append(domain)
             when {
-                filter.query.isNotEmpty() -> {
+                !filter.query.isNullOrEmpty() -> {
                     append("/v1/api/tim-kiem?keyword=")
                     append((filter.query.urlEncoded()))
                     append("&page=")

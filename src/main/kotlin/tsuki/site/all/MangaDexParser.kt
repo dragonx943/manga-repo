@@ -44,10 +44,10 @@ internal class MangaDexParser(context: MangaLoaderContext) : FlexibleMangaParser
 
 	private val preferredServerKey = ConfigKey.PreferredImageServer(
 		presetValues = mapOf(
-			_root_ide_package_.tsuki.site.all.SERVER_DATA to "Original quality",
-			_root_ide_package_.tsuki.site.all.SERVER_DATA_SAVER to "Compressed quality",
+			SERVER_DATA to "Original quality",
+			SERVER_DATA_SAVER to "Compressed quality",
 		),
-		defaultValue = _root_ide_package_.tsuki.site.all.SERVER_DATA,
+		defaultValue = SERVER_DATA,
 	)
 
 	override fun onCreateConfig(keys: MutableCollection<ConfigKey<*>>) {

@@ -55,7 +55,7 @@ internal class VcomycsParser(context: MangaLoaderContext) :
 	}
 
 	override suspend fun getListPage(page: Int, order: SortOrder, filter: MangaListFilter): List<Manga> {
-		if (filter.query.isNotEmpty()) {
+		if (!filter.query.isNullOrEmpty()) {
 			if (page > 1) return emptyList()
 
 			val payload = "action=searchtax&keyword=${(filter.query.urlEncoded())}"

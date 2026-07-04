@@ -88,7 +88,7 @@ internal class HentaiNexus(context: MangaLoaderContext) :
         val url = buildString {
             append("https://$domain/page/$page")
             when {
-                filter.query.isNotEmpty() -> {
+                !filter.query.isNullOrEmpty() -> {
                     append("?q=")
                     append(filter.query.urlEncoded())
                 }
@@ -96,7 +96,7 @@ internal class HentaiNexus(context: MangaLoaderContext) :
                 else -> {
                     val queries = mutableListOf<String>()
 
-                    if (filter.author.isNotEmpty()) {
+                    if (!filter.author.isNullOrEmpty()) {
                         queries.add("artist:${filter.author}")
                     }
 

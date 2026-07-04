@@ -76,7 +76,7 @@ internal abstract class ManhwaZ(
 		val url = buildString {
 			append("https://")
 			append(domain)
-			if (filter.query.isNotEmpty()) {
+			if (!filter.query.isNullOrEmpty()) {
 				append("$searchPath?s=")
 				append((filter.query.urlEncoded()))
 				append("&page=")

@@ -61,7 +61,7 @@ internal class DocTruyen3Q(context: MangaLoaderContext) :
 				}
 			}
 
-			if (filter.query.isNotEmpty()) {
+			if (!filter.query.isNullOrEmpty()) {
 				params.add("keyword=${filter.query.urlEncoded()}")
 			}
 

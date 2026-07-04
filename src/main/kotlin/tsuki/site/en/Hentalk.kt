@@ -66,11 +66,11 @@ internal class Hentalk(context: MangaLoaderContext) :
             append("/__data.json?x-sveltekit-trailing-slash=1&x-sveltekit-invalidated=001")
 
             when {
-                filter.query.isNotEmpty() || filter.tags.isNotEmpty() || filter.author.isNotEmpty() -> {
+                !filter.query.isNullOrEmpty() || filter.tags.isNotEmpty() || !filter.author.isNullOrEmpty() -> {
                     append("&q=")
 
-                    if (filter.author.isNotEmpty()) {
-                        filter.author.let { append("artist:\"${space2plus(it)}\"") }
+                    if (!filter.author.isNullOrEmpty()) {
+                        filter.author?.let { append("artist:\"${space2plus(it)}\"") }
                         append('+')
                     }
 
@@ -81,8 +81,8 @@ internal class Hentalk(context: MangaLoaderContext) :
                         }
                     }
 
-                    if (filter.query.isNotEmpty()) {
-                        filter.query.let { append(space2plus(it)) }
+                    if (!filter.query.isNullOrEmpty()) {
+                        filter.query?.let { append(space2plus(it)) }
                     } else {
                         append('+')
                     }

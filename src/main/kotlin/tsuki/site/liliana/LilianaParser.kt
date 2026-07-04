@@ -61,7 +61,7 @@ internal abstract class LilianaParser(
 			append("https://")
 			append(domain)
 			when {
-				filter.query.isNotEmpty() -> {
+				!filter.query.isNullOrEmpty() -> {
 					append("/search/")
 					append(page)
 					append("/?keyword=")

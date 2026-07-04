@@ -57,7 +57,7 @@ internal class LxManga(context: MangaLoaderContext) : PagedMangaParser(context, 
 			append(domain)
 
 			when {
-				filter.query.isNotEmpty() -> {
+				!filter.query.isNullOrEmpty() -> {
 					append("/tim-kiem")
 					append("?filter[name]=")
 					append((filter.query.urlEncoded()))
@@ -107,7 +107,7 @@ internal class LxManga(context: MangaLoaderContext) : PagedMangaParser(context, 
 				}
 			}
 
-			if (filter.query.isEmpty()) {
+			if (filter.query.isNullOrEmpty()) {
 				append("&sort=")
 				when (order) {
 					SortOrder.POPULARITY -> append("-views")

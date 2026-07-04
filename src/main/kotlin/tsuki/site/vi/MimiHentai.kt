@@ -80,22 +80,22 @@ internal class MimiHentai(context: MangaLoaderContext) :
 			append("https://")
 			append("$domain/$apiSuffix/manga")
 
-			if (filter.query.isNotEmpty() ||
-                filter.author.isNotEmpty() ||
+			if (!filter.query.isNullOrEmpty() ||
+                !filter.author.isNullOrEmpty() ||
 				filter.tags.isNotEmpty()
 			) {
 				append("/advanced-search?page=")
 				append(page)
 				append("&page_size=$pageSize") // page size, avoid rate limit
 
-				if (filter.query.isNotEmpty()) {
+				if (!filter.query.isNullOrEmpty()) {
 					append("&title=")
 					append(filter.query.urlEncoded())
 				}
 
-				if (filter.author.isNotEmpty()) {
+				if (!filter.author.isNullOrEmpty()) {
 					append("&author=")
-					append(filter.author.substringAfter("(")?.substringBefore(")") ?: "")
+					append(filter.author?.substringAfter("(")?.substringBefore(")") ?: "")
 				}
 
 				if (filter.tags.isNotEmpty()) {

@@ -72,7 +72,7 @@ internal class TruyenHentai18(context: MangaLoaderContext):
 					append("&page=")
 					append(page)
 
-					if (filter.query.isNotEmpty()) {
+					if (!filter.query.isNullOrEmpty()) {
 						append("&query=${filter.query}")
 					}
 				}

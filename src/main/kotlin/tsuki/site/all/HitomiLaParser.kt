@@ -126,7 +126,7 @@ internal class HitomiLaParser(context: MangaLoaderContext) : AbstractMangaParser
 	private var cachedSearchIds: List<Int> = emptyList()
 
 	override suspend fun getList(offset: Int, order: SortOrder, filter: MangaListFilter): List<Manga> = when {
-		filter.query.isEmpty() -> {
+		filter.query.isNullOrEmpty() -> {
 			if (filter.tags.isEmpty()) {
 				when (order) {
 					SortOrder.POPULARITY_TODAY -> {

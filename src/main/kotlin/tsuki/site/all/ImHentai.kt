@@ -65,7 +65,7 @@ internal class ImHentai(context: MangaLoaderContext) :
             append("/search/?page=")
             append(page.toString())
             when {
-                filter.query.isNotEmpty() -> {
+                !filter.query.isNullOrEmpty() -> {
                     append("&key=")
                     append(filter.query.urlEncoded())
                 }

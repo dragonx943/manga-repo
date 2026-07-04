@@ -42,7 +42,7 @@ internal class HentaiEnvy(context: MangaLoaderContext) :
             append("https://")
             append(domain)
             when {
-                filter.query.isNotEmpty() -> {
+                !filter.query.isNullOrEmpty() -> {
                     append("/search/?s_key=")
                     append(filter.query.urlEncoded())
                     append("&")

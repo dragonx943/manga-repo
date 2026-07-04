@@ -33,7 +33,7 @@ internal class Misskon(context: MangaLoaderContext) : PagedMangaParser(context, 
             append("https://")
             append(domain)
             when {
-                filter.query.isNotEmpty() -> {
+                !filter.query.isNullOrEmpty() -> {
                     append("/page/$page/")
                     append("?s=")
                     append((filter.query.urlEncoded()))

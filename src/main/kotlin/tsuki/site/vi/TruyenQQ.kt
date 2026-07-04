@@ -73,7 +73,7 @@ internal class TruyenQQ(context: MangaLoaderContext):
 
 	override suspend fun getListPage(page: Int, order: SortOrder, filter: MangaListFilter): List<Manga> {
 		val url = when {
-			filter.query.isNotEmpty() -> {
+			!filter.query.isNullOrEmpty() -> {
 				buildString {
 					append("https://")
 					append(domain)

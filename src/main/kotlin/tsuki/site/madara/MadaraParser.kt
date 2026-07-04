@@ -302,7 +302,7 @@ internal abstract class MadaraParser(
 					append(filter.year.toString())
 				}
 
-				filter.author.takeIf { it.isNotEmpty() }?.let {
+				filter.author?.takeIf { it.isNotEmpty() }?.let {
 					append("&author=")
 					// should be like "minamida-usuke"
 					append(it.lowercase().replace(" ", "-"))
@@ -370,7 +370,7 @@ internal abstract class MadaraParser(
 				payload["vars[tax_query][2][terms][]"] = filter.year.toString()
 			}
 
-			filter.author.takeIf { it.isNotEmpty() }?.let {
+			filter.author?.takeIf { it.isNotEmpty() }?.let {
 				payload["vars[tax_query][3][taxonomy]"] = "wp-manga-author"
 				payload["vars[tax_query][3][field]"] = "name"
 				payload["vars[tax_query][3][terms][0]"] = it

@@ -54,12 +54,12 @@ internal class HentaiCube(context: MangaLoaderContext) :
 		val pages = page + 1
 
 		val url = buildString {
-			if (filter.author.isNotEmpty()) {
+			if (!filter.author.isNullOrEmpty()) {
 				clear()
 				append("https://")
 				append(domain)
 				append("/tacgia/")
-				append(filter.author.lowercase()?.replace(" ", "-"))
+				append(filter.author?.lowercase().orEmpty()?.replace(" ", "-"))
 
 				if (pages > 1) {
 					append("/page/")

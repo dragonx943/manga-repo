@@ -109,7 +109,7 @@ internal class Koharu(context: MangaLoaderContext) :
 				terms.add("title:\"${it.urlEncoded()}\"")
 			}
 
-			filter.author.takeIf { it.isNotEmpty() }?.let { author ->
+			filter.author?.takeIf { it.isNotEmpty() }?.let { author ->
 				val authors = authorsIds.getOrDefault(emptyMap())
 				val authorId = authors[author.lowercase()]
 

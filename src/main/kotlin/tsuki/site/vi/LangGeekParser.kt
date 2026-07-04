@@ -61,7 +61,7 @@ internal class LangGeekParser(context: MangaLoaderContext):
 
 	override suspend fun getListPage(page: Int, order: SortOrder, filter: MangaListFilter): List<Manga> {
 		return when {
-			filter.query.isNotEmpty() -> {
+			!filter.query.isNullOrEmpty() -> {
 				if (page > 1) {
 					return emptyList()
 				}

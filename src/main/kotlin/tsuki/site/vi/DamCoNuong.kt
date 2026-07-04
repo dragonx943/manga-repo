@@ -99,7 +99,7 @@ internal class DamCoNuong(context: MangaLoaderContext) :
 				append(filter.tags.joinTo(this, ",") { it.key })
 			}
 
-			if (filter.query.isNotEmpty()) {
+			if (!filter.query.isNullOrEmpty()) {
 				append("&filter[name]=")
 				append(filter.query.urlEncoded())
 			}
@@ -109,7 +109,7 @@ internal class DamCoNuong(context: MangaLoaderContext) :
 				append(filter.tagsExclude.joinTo(this, ",") { it.key })
 			}
 
-			if (filter.author.isNotEmpty()) {
+			if (!filter.author.isNullOrEmpty()) {
 				append("&filter[author]=")
 				append(filter.author.urlEncoded())
 			}

@@ -81,7 +81,7 @@ internal class NhentaiWorld(context: MangaLoaderContext) :
         }
 
         // Search
-		if (filter.query.isNotEmpty()) {
+		if (!filter.query.isNullOrEmpty()) {
 			urlBuilder.addQueryParameter(
                 "search",
                 filter.query.splitByWhitespace().joinToString("+") { it }
@@ -102,7 +102,7 @@ internal class NhentaiWorld(context: MangaLoaderContext) :
         }
 
         // Author
-        if (filter.author.isNotEmpty()) {
+        if (!filter.author.isNullOrEmpty()) {
             urlBuilder.addQueryParameter(
                 "author",
                 filter.author.splitByWhitespace().joinToString("+") { it }

@@ -108,7 +108,7 @@ internal class CMangaParser(context: MangaLoaderContext) :
 
     override suspend fun getListPage(page: Int, order: SortOrder, filter: MangaListFilter): List<Manga> {
         val url = urlBuilder().apply {
-            if (filter.query.isEmpty() && (order == SortOrder.RELEVANCE ||
+            if (filter.query.isNullOrEmpty() && (order == SortOrder.RELEVANCE ||
                         order == SortOrder.POPULARITY_TODAY ||
                         order == SortOrder.POPULARITY_WEEK ||
                         order == SortOrder.POPULARITY_MONTH

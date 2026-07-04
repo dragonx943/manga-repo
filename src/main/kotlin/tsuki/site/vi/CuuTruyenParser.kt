@@ -70,9 +70,9 @@ internal class CuuTruyenParser(context: MangaLoaderContext) :
 	override suspend fun getListPage(page: Int, order: SortOrder, filter: MangaListFilter): List<Manga> {
         // Move to urlBuilder
 		val url = buildString {
-            if (filter.query.isNotEmpty() || filter.tags.isNotEmpty() || filter.states.isNotEmpty()) {
+            if (!filter.query.isNullOrEmpty() || filter.tags.isNotEmpty() || filter.states.isNotEmpty()) {
                 append("/mangas/search?q=")
-                if (filter.query.isNotEmpty()) {
+                if (!filter.query.isNullOrEmpty()) {
                     append(filter.query.urlEncoded())
                 }
 

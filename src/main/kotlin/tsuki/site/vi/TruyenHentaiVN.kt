@@ -47,7 +47,7 @@ internal class TruyenHentaiVN(context: MangaLoaderContext) :
 					}
 				}
 
-				filter.query.isNotEmpty() -> {
+				!filter.query.isNullOrEmpty() -> {
 					append("/tim-kiem-truyen/?q=")
 					append((filter.query.urlEncoded()))
 					if (page > 1) {
