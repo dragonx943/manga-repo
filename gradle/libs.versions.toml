@@ -1,6 +1,6 @@
 [versions]
 collection = "1.6.0"
-core = "9b51187e96"
+tsuki = "1.0.0"
 kotlin = "2.2.10"
 ksp = "2.2.10-2.0.2"
 coroutines = "1.10.2"
@@ -24,7 +24,7 @@ ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 
 [libraries]
 android-stubs = { module = "com.google.android:android", version.ref = "stubs" }
-core-parsers = { module = "com.github.UsagiApp:core-parsers", version.ref = "core"}
+tsuki = { module = "com.github.UsagiApp:Tsuki", version.ref = "tsuki"}
 ksp-symbol-processing-api = { module = "com.google.devtools.ksp:symbol-processing-api", version.ref = "ksp" }
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
