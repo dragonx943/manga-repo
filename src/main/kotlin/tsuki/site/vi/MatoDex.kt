@@ -24,13 +24,19 @@ import tsuki.util.parseHtml
 import tsuki.util.parseSafe
 import org.json.JSONArray
 import org.json.JSONObject
+import tsuki.model.ContentRating
 import tsuki.model.Favicon
 import tsuki.model.Favicons
+import tsuki.model.MangaState
 import tsuki.util.json.asTypedList
+import tsuki.util.json.mapJSONToSet
+import tsuki.util.parseJson
 import tsuki.util.toAbsoluteUrl
+import tsuki.util.urlBuilder
 import java.text.SimpleDateFormat
 import java.util.EnumSet
 import java.util.Locale
+import kotlin.collections.orEmpty
 
 @MangaSourceParser("MATODEX", "MatoDex", "vi")
 internal class MatoDex(context: MangaLoaderContext) :
@@ -63,8 +69,10 @@ internal class MatoDex(context: MangaLoaderContext) :
     override suspend fun getFilterOptions() = MangaListFilterOptions()
 
     override suspend fun getList(order: SortOrder, filter: MangaListFilter): List<Manga> {
-        val request = webClient.httpGet("https://$domain/").parseHtml()
-        val section = request.selectFirst("section.flex.flex-1.flex-col.gap-4") ?: request
+        val url = urlBuilder().addPathSegments("api/v1/mato/info.json").build()
+        val res = webClient.httpGet(url).parseJson()
+        val web = webClient.httpGet("https://$domain/").parseHtml()
+        val section = web.selectFirst("section.flex.flex-1.flex-col.gap-4") ?: web
         val genres = section.select("div.flex.flex-wrap.gap-1.md\\:hidden span").map {
             MangaTag(
                 title = it.text(),
@@ -76,29 +84,26 @@ internal class MatoDex(context: MangaLoaderContext) :
         val authors = section.select("div.font-title p.line-clamp-1.text-base.break-all")
             .firstOrNull()?.text()
             ?.split(",")?.map { it.trim() }?.toSet() ?: emptySet()
-
-        val title = section.selectFirst("p.text-3xl.font-black.drop-shadow-md")?.text() ?: ""
-        val altTitle = section.selectFirst("h2.line-clamp-2.text-lg.leading-5.drop-shadow-md")?.text() ?: ""
-
         return listOf(
             Manga(
                 id = generateUid(domain),
                 url = "https://$domain/",
                 publicUrl = "https://$domain/",
-                coverUrl = section.selectFirst("div.relative.shrink-0 img")?.attr("src")?.toAbsoluteUrl(domain),
-                title = title,
-                altTitles = if (altTitle.isNotEmpty()) setOf(altTitle) else emptySet(),
+                coverUrl = res.getString("cover"),
+                title = res.getString("title"),
+                altTitles = res.optJSONArray("altTitles")?.mapJSONToSet { it.getString("name") }.orEmpty(),
                 rating = section.selectFirst("svg[data-icon=lucide:star] + span")
                     ?.text()?.toFloatOrNull()
                     ?.div(10f) ?: RATING_UNKNOWN,
                 tags = genres,
                 authors = authors,
-                state = null,
+                state = when (res.getString("status")) {
+                    "ongoing" -> MangaState.ONGOING
+                    else -> MangaState.FINISHED
+                },
                 source = source,
-                contentRating = null,
-                description = section.select("div.prose p, div[class*=prose] p")
-                    .joinToString(separator = "\n\n") { it.text() }
-                    .takeIf { it.isNotEmpty() },
+                contentRating = ContentRating.ADULT,
+                description = res.getString("description"),
             ),
         )
     }
