@@ -1,11 +1,13 @@
 package tsuki.site.madara.vi
 
+import tsuki.Broken
 import tsuki.MangaLoaderContext
 import tsuki.MangaSourceParser
 import tsuki.model.ContentType
 import tsuki.model.MangaParserSource
 import tsuki.site.madara.MadaraParser
 
+@Broken("Web server is down!")
 @MangaSourceParser("TRUYENVN", "KhoTruyen", "vi", ContentType.HENTAI)
 internal class TruyenVn(context: MangaLoaderContext) :
 	MadaraParser(context, MangaParserSource.TRUYENVN, "truyenvn.sbs", 20) {
