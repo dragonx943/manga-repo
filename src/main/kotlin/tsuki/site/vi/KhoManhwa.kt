@@ -1,10 +1,13 @@
 package tsuki.site.vi
 
+import org.json.JSONObject
+import tsuki.Broken
 import tsuki.ErrorMessages
 import tsuki.MangaLoaderContext
 import tsuki.MangaSourceParser
 import tsuki.config.ConfigKey
 import tsuki.core.PagedMangaParser
+import tsuki.exception.ParseException
 import tsuki.model.ContentRating
 import tsuki.model.ContentType
 import tsuki.model.Manga
@@ -18,20 +21,24 @@ import tsuki.model.MangaState
 import tsuki.model.MangaTag
 import tsuki.model.RATING_UNKNOWN
 import tsuki.model.SortOrder
-import tsuki.util.attrAsRelativeUrl
 import tsuki.util.generateUid
+import tsuki.util.json.asTypedList
+import tsuki.util.json.mapJSON
 import tsuki.util.mapChapters
 import tsuki.util.mapToSet
 import tsuki.util.parseHtml
-import tsuki.util.selectFirstOrThrow
+import tsuki.util.parseJson
+import tsuki.util.parseSafe
 import tsuki.util.splitByWhitespace
 import tsuki.util.src
-import tsuki.util.textOrNull
 import tsuki.util.toAbsoluteUrl
+import tsuki.util.toRelativeUrl
 import tsuki.util.urlBuilder
+import java.text.SimpleDateFormat
 import java.util.EnumSet
 
 // Thằng nào làm web này xứng đáng bị búng dái!
+@Broken("403 forbidden in getPages, need to handle login")
 @MangaSourceParser("KHOMANHWA", "KhoManhwa", "vi", type = ContentType.HENTAI)
 internal class KhoManhwa(context: MangaLoaderContext):
     PagedMangaParser(context, MangaParserSource.KHOMANHWA, 30) {
@@ -68,8 +75,6 @@ internal class KhoManhwa(context: MangaLoaderContext):
     )
 
     override suspend fun getListPage(page: Int, order: SortOrder, filter: MangaListFilter): List<Manga> {
-        // https://khomanhwa.com/search?q=&genre=&status=&sort=updated
-        // https://khomanhwa.com/search?q=&status=&sort=updated&page=30
         val url = urlBuilder().addPathSegment("search")
 
         // keyword
@@ -139,35 +144,69 @@ internal class KhoManhwa(context: MangaLoaderContext):
     }
 
     override suspend fun getDetails(manga: Manga): Manga {
-        val doc = webClient.httpGet(manga.url.toAbsoluteUrl(domain)).parseHtml()
+        val dateFormat = SimpleDateFormat("MMM d, yyyy", sourceLocale)
+        val response = webClient.httpGet(manga.url.toAbsoluteUrl(domain)).parseHtml()
+
+        val script = response.selectFirst("script[type='application/ld+json']")?.data()
+        val json = if (!script.isNullOrBlank()) JSONObject(script) else null
+
+        val main = response.selectFirst("section.series-main")
+
+        val altTitles: Set<String> = main?.selectFirst("p.alt-names")?.text()
+            ?.removePrefix("Alternative:")?.split("/")
+            ?.map { it.trim() }?.filter { it.isNotEmpty() }?.toSet() ?: emptySet()
+
+        val state = when (response.selectFirst("dl.vortex-facts a")?.text()) {
+            "Ongoing" -> MangaState.ONGOING
+            "Completed" -> MangaState.FINISHED
+            "Hiatus" -> MangaState.PAUSED
+            else -> null
+        }
+
         return manga.copy(
-            rating = doc.selectFirst("div > span.leading-none")?.text()?.toFloatOrNull()?.div(5f) ?: RATING_UNKNOWN,
-            authors = setOfNotNull(doc.selectFirst("aside p:contains(Tác giả:) a[href^='/tac-gia/']")?.textOrNull()),
-            chapters = doc.select("ul[itemtype='https://schema.org/ItemList'] li")
-                .mapChapters(reversed = true) { i, li ->
-                    val a = li.selectFirstOrThrow("a")
-                    val href = a.attrAsRelativeUrl("href")
-                    val name = li.selectFirst("div.w-\\[50\\%\\].truncate.flex")?.text() ?: ""
-                    MangaChapter(
-                        id = generateUid(href),
-                        title = name,
-                        number = i + 1f,
-                        volume = 0,
-                        url = href,
-                        scanlator = null,
-                        uploadDate = 0L,
-                        branch = null,
-                        source = source,
-                    )
-                },
+            authors = setOfNotNull(json?.getJSONObject("author")?.getString("name")),
+            altTitles = altTitles,
+            description = main?.selectFirst("section.summary-inline p")?.ownText(),
+            tags = json?.getJSONArray("genre")?.asTypedList<String>()?.mapToSet {
+                MangaTag(it, it, source)
+            } ?: emptySet(),
+            state = state,
+            chapters = response.select(".chapter-list .chapter-row").mapChapters(true) { _, row ->
+                val name = row.attr("data-title")
+                MangaChapter(
+                    id = generateUid(name),
+                    title = name,
+                    number = row.attr("data-number").toFloat(),
+                    volume = 0,
+                    url = row.selectFirst("a.chapter-main")?.attr("href")?.toRelativeUrl(domain).orEmpty(),
+                    scanlator = null,
+                    uploadDate = dateFormat.parseSafe(row.selectFirst("span.chapter-age")?.text()),
+                    branch = null,
+                    source = source,
+                )
+            },
         )
     }
 
     override suspend fun getPages(chapter: MangaChapter): List<MangaPage> {
         val fullUrl = chapter.url.toAbsoluteUrl(domain)
         val doc = webClient.httpGet(fullUrl).parseHtml()
-        return doc.select("img.lozad.mx-auto.transition-all.max-w-full.relative").map { img ->
-            val url = img.attr("data-src")
+        val vip = doc.selectFirst("title")?.text() ?: ""
+
+        if (vip.contains("vip")) {
+            throw ParseException("This chapter is locked, please login to read it", fullUrl)
+        }
+
+        val token = doc.selectFirst("main.reader .chapter_boxImages")?.attr("data-token")
+        val imageUrl = urlBuilder().addPathSegment("reader_images.php")
+            .addQueryParameter("manga", chapter.url.substringBeforeLast("/"))
+            .addQueryParameter("chapter", chapter.url.substringAfterLast("/"))
+            .addQueryParameter("token", token)
+            .build()
+
+        val res = webClient.httpGet(imageUrl).parseJson()
+        return res.getJSONArray("images").mapJSON {
+            val url = it.getString("url")
             MangaPage(
                 id = generateUid(url),
                 url = url,
@@ -188,5 +227,4 @@ internal class KhoManhwa(context: MangaLoaderContext):
             )
         }
     }
-
 }
