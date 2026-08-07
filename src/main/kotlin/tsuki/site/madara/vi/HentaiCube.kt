@@ -18,7 +18,6 @@ import tsuki.model.MangaParserSource
 import tsuki.model.MangaState
 import tsuki.model.MangaTag
 import tsuki.model.SortOrder
-import tsuki.network.CloudFlareHelper
 import tsuki.network.CommonHeaders
 import tsuki.network.UserAgents
 import tsuki.site.madara.MadaraParser
@@ -168,12 +167,11 @@ internal class HentaiCube(context: MangaLoaderContext) :
 		val token = html.selectFirst(".manga-secure-reader")?.attr("data-masr2-token")
 			?: throw ParseException("Web đã thay đổi thuật toán mã hóa ảnh, hết cứu!", chapter.url)
 
-		val cfCookies = "cf_chl_rc_ni=1; cf_clearance=" +
-			CloudFlareHelper.getClearanceCookie(context.cookieJar, chapter.url.toAbsoluteUrl(domain))
 		val headers = Headers.Builder()
+			.removeAll(CommonHeaders.REFERER)
 			.add(CommonHeaders.REFERER, chapter.url.toAbsoluteUrl(domain))
-			.add(CommonHeaders.USER_AGENT, UserAgents.CHROME_WINDOWS)
-			.add(CommonHeaders.COOKIE, cfCookies)
+			.add(CommonHeaders.USER_AGENT, UserAgents.CHROME_MOBILE)
+			.add(CommonHeaders.COOKIE, context.cookieJar.toString())
 			.build()
 
 		val url = urlBuilder().addPathSegments("wp-json/manga-reader/v2/pages")
@@ -190,8 +188,9 @@ internal class HentaiCube(context: MangaLoaderContext) :
 	override fun intercept(chain: Interceptor.Chain): Response {
 		val request = chain.request()
 		val headers = request.headers.newBuilder()
+			.removeAll(CommonHeaders.REFERER)
 			.add(CommonHeaders.REFERER, "https://$domain/")
-			.add(CommonHeaders.USER_AGENT, UserAgents.CHROME_WINDOWS)
+			.add(CommonHeaders.USER_AGENT, UserAgents.CHROME_MOBILE)
 			.build()
 
 		val newRequest = request.newBuilder()
