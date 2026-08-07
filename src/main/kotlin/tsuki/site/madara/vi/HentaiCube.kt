@@ -1,10 +1,12 @@
 package tsuki.site.madara.vi
 
 import okhttp3.Headers
+import okhttp3.Interceptor
+import okhttp3.Response
 import org.jsoup.nodes.Element
-import tsuki.Broken
 import tsuki.MangaLoaderContext
 import tsuki.MangaSourceParser
+import tsuki.exception.ParseException
 import tsuki.model.ContentRating
 import tsuki.model.ContentType
 import tsuki.model.Manga
@@ -31,9 +33,9 @@ import tsuki.util.suspendlazy.suspendLazy
 import tsuki.util.toAbsoluteUrl
 import tsuki.util.urlBuilder
 import tsuki.util.urlEncoded
+import java.util.UUID
 
-// Do not use "hentaicb.sbs" domain, may cause duplicate tags!
-@Broken("Lười sửa web vl, thằng nào tạo issue thì mới sửa!")
+// Thằng nào làm web xứng đáng bị búng dái :p
 @MangaSourceParser("HENTAICUBE", "HentaiCube", "vi", ContentType.HENTAI)
 internal class HentaiCube(context: MangaLoaderContext) :
 	MadaraParser(context, MangaParserSource.HENTAICUBE, "hentaicube.xyz") {
@@ -162,28 +164,41 @@ internal class HentaiCube(context: MangaLoaderContext) :
 	}
 
 	override suspend fun getPages(chapter: MangaChapter): List<MangaPage> {
-		val originUrl = chapter.url.substringBeforeLast("/ch").toAbsoluteUrl(domain)
-		val cfCookies = "cf_chl_rc_ni=1; cf_clearance=" + CloudFlareHelper.getClearanceCookie(context.cookieJar, originUrl)
-		val nonceUrl = urlBuilder().addPathSegments("wp-json/manga-reader/v1/challenge")
-		val nonceHeaders = Headers.Builder()
+		val html = webClient.httpGet(chapter.url.toAbsoluteUrl(domain)).parseHtml()
+		val token = html.selectFirst(".manga-secure-reader")?.attr("data-masr2-token")
+			?: throw ParseException("Web đã thay đổi thuật toán mã hóa ảnh, hết cứu!", chapter.url)
+
+		val cfCookies = "cf_chl_rc_ni=1; cf_clearance=" +
+			CloudFlareHelper.getClearanceCookie(context.cookieJar, chapter.url.toAbsoluteUrl(domain))
+		val headers = Headers.Builder()
 			.add(CommonHeaders.REFERER, chapter.url.toAbsoluteUrl(domain))
-			.add(CommonHeaders.USER_AGENT, UserAgents.CHROME_DESKTOP)
+			.add(CommonHeaders.USER_AGENT, UserAgents.CHROME_WINDOWS)
 			.add(CommonHeaders.COOKIE, cfCookies)
 			.build()
 
-		val challenges = webClient.httpGet(nonceUrl.build(), nonceHeaders).parseJson()
-		val imgHeaders = Headers.Builder()
-			.add(CommonHeaders.REFERER, chapter.url.toAbsoluteUrl(domain))
-			.add(CommonHeaders.USER_AGENT, UserAgents.CHROME_DESKTOP)
-			.add(CommonHeaders.COOKIE, cfCookies)
-			.add("x-masr-nonce", challenges.getString("nonce"))
+		val url = urlBuilder().addPathSegments("wp-json/manga-reader/v2/pages")
+			.addQueryParameter("token", token)
+			.addQueryParameter("cid", randomHash())
 			.build()
 
-		val jsonUrl = urlBuilder().addPathSegments("wp-json/manga-reader/v1/images")
-		val json = webClient.httpGet(jsonUrl.build(), imgHeaders).parseJson()
-		return json.getJSONArray("images").asTypedList<String>().map {
+		val json = webClient.httpGet(url, headers).parseJson()
+		return json.getJSONArray("items").asTypedList<String>().map {
 			MangaPage(generateUid(it), it, null, source)
 		}
+	}
+
+	override fun intercept(chain: Interceptor.Chain): Response {
+		val request = chain.request()
+		val headers = request.headers.newBuilder()
+			.add(CommonHeaders.REFERER, "https://$domain/")
+			.add(CommonHeaders.USER_AGENT, UserAgents.CHROME_WINDOWS)
+			.build()
+
+		val newRequest = request.newBuilder()
+			.headers(headers)
+			.build()
+
+		return chain.proceed(newRequest)
 	}
 
 	private suspend fun fetchTags(): Set<MangaTag> {
@@ -200,4 +215,6 @@ internal class HentaiCube(context: MangaLoaderContext) :
 			)
 		}.toSet()
 	}
+
+	private fun randomHash(): String = UUID.randomUUID().toString().replace("-", "")
 }
