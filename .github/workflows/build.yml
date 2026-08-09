@@ -1,10 +1,9 @@
-name: Build & Publish
+name: Build JAR
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - master
       - devel
     paths:
       - 'src/main/kotlin/tsuki/**'
@@ -41,10 +40,8 @@ jobs:
       - name: Run buildJar task 🚀
         run: chmod +x gradlew && ./gradlew buildJar --rerun-tasks
 
-      - name: Upload to GitHub Release 📤
-        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
+      - name: Upload JAR Artifact 📤
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ steps.meta.outputs.sha_short }}
-          name: "${{ steps.meta.outputs.sha_short }}"
-          files: build/libs/vn.jar
-          token: ${{ secrets.GITHUB_TOKEN }}
+          name: ${{ steps.meta.outputs.sha_short }}
+          path: '**/build/libs/*.jar'
