@@ -1,7 +1,6 @@
 package tsuki.site.vi
 
 import org.json.JSONObject
-import tsuki.Broken
 import tsuki.ErrorMessages
 import tsuki.MangaLoaderContext
 import tsuki.MangaSourceParser
@@ -23,25 +22,27 @@ import tsuki.model.RATING_UNKNOWN
 import tsuki.model.SortOrder
 import tsuki.util.generateUid
 import tsuki.util.json.asTypedList
-import tsuki.util.json.mapJSON
 import tsuki.util.mapChapters
 import tsuki.util.mapToSet
 import tsuki.util.parseHtml
-import tsuki.util.parseJson
 import tsuki.util.parseSafe
 import tsuki.util.splitByWhitespace
 import tsuki.util.src
 import tsuki.util.toAbsoluteUrl
 import tsuki.util.toRelativeUrl
 import tsuki.util.urlBuilder
+import org.jsoup.HttpStatusException
+import tsuki.MangaParserAuthProvider
+import tsuki.exception.AuthRequiredException
+import tsuki.util.getCookies
+import tsuki.util.runCatchingCancellable
 import java.text.SimpleDateFormat
 import java.util.EnumSet
+import java.util.Locale
 
-// Thằng nào làm web này xứng đáng bị búng dái!
-@Broken("403 forbidden in getPages, need to handle login")
 @MangaSourceParser("KHOMANHWA", "KhoManhwa", "vi", type = ContentType.HENTAI)
 internal class KhoManhwa(context: MangaLoaderContext):
-    PagedMangaParser(context, MangaParserSource.KHOMANHWA, 30) {
+    PagedMangaParser(context, MangaParserSource.KHOMANHWA, 30), MangaParserAuthProvider {
 
     override val configKeyDomain = ConfigKey.Domain("khomanhwa.com")
 
@@ -73,6 +74,21 @@ internal class KhoManhwa(context: MangaLoaderContext):
             MangaState.PAUSED, // Hiatus
         ),
     )
+
+    override val authUrl: String
+        get() = "https://$domain/login"
+
+    override suspend fun isAuthorized(): Boolean {
+        return context.cookieJar.getCookies(domain).any {
+            it.name == "member_remember"
+        }
+    }
+
+    override suspend fun getUsername(): String? {
+        val doc = runCatchingCancellable { webClient.httpGet("https://$domain/history").parseHtml() }.getOrNull()
+        return doc?.selectFirst("a[href='/account']")?.text()
+            ?: doc?.selectFirst(".member-hero p")?.text()?.substringAfter("Hi ")?.substringBefore(".")
+    }
 
     override suspend fun getListPage(page: Int, order: SortOrder, filter: MangaListFilter): List<Manga> {
         val url = urlBuilder().addPathSegment("search")
@@ -144,7 +160,7 @@ internal class KhoManhwa(context: MangaLoaderContext):
     }
 
     override suspend fun getDetails(manga: Manga): Manga {
-        val dateFormat = SimpleDateFormat("MMM d, yyyy", sourceLocale)
+        val dateFormat = SimpleDateFormat("MMM d, yyyy", Locale.US)
         val response = webClient.httpGet(manga.url.toAbsoluteUrl(domain)).parseHtml()
 
         val script = response.selectFirst("script[type='application/ld+json']")?.data()
@@ -164,10 +180,10 @@ internal class KhoManhwa(context: MangaLoaderContext):
         }
 
         return manga.copy(
-            authors = setOfNotNull(json?.getJSONObject("author")?.getString("name")),
+            authors = setOfNotNull(json?.optJSONObject("author")?.optString("name")),
             altTitles = altTitles,
             description = main?.selectFirst("section.summary-inline p")?.ownText(),
-            tags = json?.getJSONArray("genre")?.asTypedList<String>()?.mapToSet {
+            tags = json?.optJSONArray("genre")?.asTypedList<String>()?.mapToSet {
                 MangaTag(it, it, source)
             } ?: emptySet(),
             state = state,
@@ -176,7 +192,7 @@ internal class KhoManhwa(context: MangaLoaderContext):
                 MangaChapter(
                     id = generateUid(name),
                     title = name,
-                    number = row.attr("data-number").toFloat(),
+                    number = row.attr("data-number").toFloatOrNull() ?: 0f,
                     volume = 0,
                     url = row.selectFirst("a.chapter-main")?.attr("href")?.toRelativeUrl(domain).orEmpty(),
                     scanlator = null,
@@ -190,23 +206,26 @@ internal class KhoManhwa(context: MangaLoaderContext):
 
     override suspend fun getPages(chapter: MangaChapter): List<MangaPage> {
         val fullUrl = chapter.url.toAbsoluteUrl(domain)
-        val doc = webClient.httpGet(fullUrl).parseHtml()
-        val vip = doc.selectFirst("title")?.text() ?: ""
-
-        if (vip.contains("vip")) {
-            throw ParseException("This chapter is locked, please login to read it", fullUrl)
+        val doc = try {
+            webClient.httpGet(fullUrl).parseHtml()
+        } catch (e: HttpStatusException) {
+            if (e.statusCode == 403) {
+                throw AuthRequiredException(source, e)
+            }
+            throw e
         }
 
-        val token = doc.selectFirst("main.reader .chapter_boxImages")?.attr("data-token")
-        val imageUrl = urlBuilder().addPathSegment("reader_images.php")
-            .addQueryParameter("manga", chapter.url.substringBeforeLast("/"))
-            .addQueryParameter("chapter", chapter.url.substringAfterLast("/"))
-            .addQueryParameter("token", token)
-            .build()
+        if (doc.selectFirst(".vip-reader-lock, .members-only-lock") != null || doc.title().contains("VIP", ignoreCase = true)) {
+            throw AuthRequiredException(source)
+        }
 
-        val res = webClient.httpGet(imageUrl).parseJson()
-        return res.getJSONArray("images").mapJSON {
-            val url = it.getString("url")
+        val images = doc.select(".chapter_boxImages img, main#reader img.chapter-page")
+        if (images.isEmpty()) {
+            throw ParseException("No images found in chapter", fullUrl)
+        }
+
+        return images.map { img ->
+            val url = img.src() ?: throw ParseException("Image URL not found", fullUrl)
             MangaPage(
                 id = generateUid(url),
                 url = url,
