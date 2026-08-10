@@ -1,5 +1,6 @@
 package tsuki.site.vi
 
+import okhttp3.Headers
 import org.json.JSONObject
 import tsuki.ErrorMessages
 import tsuki.MangaLoaderContext
@@ -34,6 +35,7 @@ import tsuki.util.urlBuilder
 import org.jsoup.HttpStatusException
 import tsuki.MangaParserAuthProvider
 import tsuki.exception.AuthRequiredException
+import tsuki.network.CommonHeaders
 import tsuki.util.getCookies
 import tsuki.util.runCatchingCancellable
 import java.text.SimpleDateFormat
@@ -205,9 +207,12 @@ internal class KhoManhwa(context: MangaLoaderContext):
     }
 
     override suspend fun getPages(chapter: MangaChapter): List<MangaPage> {
+        val header = Headers.Builder()
+            .add(CommonHeaders.COOKIE, context.cookieJar.getCookies(domain).toString())
+            .build()
         val fullUrl = chapter.url.toAbsoluteUrl(domain)
         val doc = try {
-            webClient.httpGet(fullUrl).parseHtml()
+            webClient.httpGet(fullUrl, header).parseHtml()
         } catch (e: HttpStatusException) {
             if (e.statusCode == 403) {
                 throw AuthRequiredException(source, e)
