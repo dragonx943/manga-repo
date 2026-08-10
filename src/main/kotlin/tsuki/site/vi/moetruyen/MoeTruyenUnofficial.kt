@@ -1,9 +1,10 @@
-package tsuki.site.vi
+package tsuki.site.vi.moetruyen
 
 import tsuki.MangaLoaderContext
 import tsuki.MangaSourceParser
 import tsuki.config.ConfigKey
 import tsuki.core.PagedMangaParser
+import tsuki.exception.ParseException
 import tsuki.model.Manga
 import tsuki.model.MangaChapter
 import tsuki.model.MangaListFilter
@@ -255,13 +256,22 @@ internal class MoeTruyenUnofficial (context: MangaLoaderContext) :
 			.addEncodedPathSegments("$apiSuffix/chapters/${chapter.url}")
 		val response = webClient.httpGet(url.build()).parseJson()
 		val data = response.getJSONObject("data")
-		return data.getJSONArray("pageUrls").asTypedList<String>().map {
-			MangaPage(
-				id = generateUid(it),
-				url = it,
-				preview = null,
-				source = source,
-			)
+		val pages = data.getJSONArray("pageUrls").asTypedList<String>()
+		val id = data.getJSONObject("chapter").getInt("id")
+
+		if (pages.isEmpty()) {
+			throw ParseException("Lỗi khi đang cào truyện từ API, vui lòng búng dái KyênPTIT từ SuiCaoDex!", chapter.url)
+		}
+
+		return resolve(webClient, apiDomain, apiSuffix, domain, source, id, pages.size).ifEmpty {
+			pages.map {
+                MangaPage(
+                    id = generateUid(it),
+                    url = it,
+                    preview = null,
+                    source = source,
+                )
+			}
 		}
 	}
 
