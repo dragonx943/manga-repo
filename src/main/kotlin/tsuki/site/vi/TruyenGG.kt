@@ -1,6 +1,5 @@
 package tsuki.site.vi
 
-import tsuki.Broken
 import tsuki.MangaLoaderContext
 import tsuki.MangaSourceParser
 import tsuki.config.ConfigKey
@@ -10,7 +9,6 @@ import tsuki.util.*
 import java.text.SimpleDateFormat
 import java.util.*
 
-@Broken("BẢO TRÌ HỆ THỐNG")
 @MangaSourceParser("TRUYENGG", "FoxTruyen", "vi")
 internal class TruyenGG(context: MangaLoaderContext) : PagedMangaParser(context, MangaParserSource.TRUYENGG, 42) {
 
@@ -159,11 +157,11 @@ internal class TruyenGG(context: MangaLoaderContext) : PagedMangaParser(context,
 				"Hoàn Thành" -> MangaState.FINISHED
 				else -> null
 			},
-			chapters = doc.select("ul.list_chap > li.item_chap").mapChapters(reversed = true) { i, div ->
+			chapters = doc.select("ul.fx-chap-list > li.fx-chap-item").mapChapters(reversed = true) { i, div ->
 				val a = div.selectFirstOrThrow("a")
 				val href = a.attrAsRelativeUrl("href")
 				val name = a.text()
-				val dateText = div.select("span.cl99").text()
+				val dateText = div.select("fx-chap-item__date").text()
 				MangaChapter(
 					id = generateUid(href),
 					title = name,

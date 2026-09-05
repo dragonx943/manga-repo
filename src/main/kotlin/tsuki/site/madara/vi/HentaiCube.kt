@@ -171,7 +171,6 @@ internal class HentaiCube(context: MangaLoaderContext) :
 			.removeAll(CommonHeaders.REFERER)
 			.add(CommonHeaders.REFERER, chapter.url.toAbsoluteUrl(domain))
 			.add(CommonHeaders.USER_AGENT, UserAgents.CHROME_MOBILE)
-			.add(CommonHeaders.COOKIE, context.cookieJar.toString())
 			.build()
 
 		val url = urlBuilder().addPathSegments("wp-json/manga-reader/v2/pages")
