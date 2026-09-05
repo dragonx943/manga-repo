@@ -161,7 +161,7 @@ internal class TruyenGG(context: MangaLoaderContext) : PagedMangaParser(context,
 				val a = div.selectFirstOrThrow("a")
 				val href = a.attrAsRelativeUrl("href")
 				val name = a.text()
-				val dateText = div.select("fx-chap-item__date").text()
+				val dateText = div.select("div.fx-chap-item__right > span.fx-chap-item__date").text()
 				MangaChapter(
 					id = generateUid(href),
 					title = name,
