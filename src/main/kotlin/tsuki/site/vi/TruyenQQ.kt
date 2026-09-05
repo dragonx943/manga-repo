@@ -3,6 +3,7 @@ package tsuki.site.vi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import tsuki.Broken
 import tsuki.MangaLoaderContext
 import tsuki.MangaSourceParser
 import tsuki.config.ConfigKey
@@ -14,6 +15,7 @@ import tsuki.util.*
 import java.text.SimpleDateFormat
 import java.util.*
 
+@Broken("Hỏng hết filters")
 @MangaSourceParser("TRUYENQQ", "TruyenQQ", "vi")
 internal class TruyenQQ(context: MangaLoaderContext):
 	PagedMangaParser(context, MangaParserSource.TRUYENQQ, 42) {
