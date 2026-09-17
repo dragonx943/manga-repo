@@ -221,7 +221,7 @@ internal class Dilib(context: MangaLoaderContext) :
 				)
 			}
 			.distinctBy { it.url }
-			.reversed()
+			.sortedBy { it.number }
 	}
 
 	// ============================== Pages ==============================
