@@ -269,13 +269,6 @@ internal class CuuTruyenParser(context: MangaLoaderContext) :
 				.build()
 		}
 
-		if (request.url.encodedPath.contains("/api/")) {
-			request = request.newBuilder()
-				.header(CLIENT_HEADER, CLIENT_VALUE)
-				.build()
-			return chain.proceed(request)
-		}
-
 		val response = chain.proceed(request)
 		val fragment = response.request.url.fragment
 
@@ -470,8 +463,6 @@ internal class CuuTruyenParser(context: MangaLoaderContext) :
 		const val MOBILE_PANORAMA = "panorama_mobile_url"
         const val DESKTOP_COVER = "cover_url"
         const val DESKTOP_PANORAMA = "panorama_url"
-		const val CLIENT_HEADER = "Cuutruyen-Client"
-		const val CLIENT_VALUE = "OfficialWebApp-20250805"
 		val STORAGE_HOST_FALLBACK = mapOf(
 			"storage-ct.lrclib.net" to "storage-bravo.cuutruyen.net",
 			"storage-ct-riften.site" to "storage-charlie.cuutruyen.net",
