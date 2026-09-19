@@ -36,7 +36,7 @@ import java.text.SimpleDateFormat
 import java.util.EnumSet
 import java.util.Locale
 
-@Broken("Our website is currently undergoing scheduled maintenance")
+@Broken("Thằng chủ web đóng cửa, chỉ admin mới có thể đọc ???")
 @MangaSourceParser("LANGGEEK", "Làng Geek", "vi", ContentType.COMICS)
 internal class LangGeekParser(context: MangaLoaderContext):
 	PagedMangaParser(context, MangaParserSource.LANGGEEK, 20, 100) {
