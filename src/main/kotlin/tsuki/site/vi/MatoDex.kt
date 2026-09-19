@@ -43,8 +43,8 @@ internal class MatoDex(context: MangaLoaderContext) :
         return Favicons(
             listOf(
                 Favicon(
-                    "https://suicaodex.com/_next/image?url=/_next/static/media/gehenna.01tto1cht53c..webp&w=48&q=100",
-                    100, null
+                    "https://mato.suicaodex.com/apple-touch-icon.png",
+                    180, null
                 ),
             ), domain
         )
