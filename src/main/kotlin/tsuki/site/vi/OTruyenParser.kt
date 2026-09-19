@@ -1,5 +1,6 @@
 package tsuki.site.vi
 
+import tsuki.Broken
 import tsuki.MangaLoaderContext
 import tsuki.MangaSourceParser
 import tsuki.config.ConfigKey
@@ -31,6 +32,7 @@ import java.util.EnumSet
 import java.util.Locale
 import java.util.TimeZone
 
+@Broken("API đã bị tắt")
 @MangaSourceParser("OTRUYEN", "Ổ Truyện", "vi")
 internal class OTruyenParser(context: MangaLoaderContext) :
 	PagedMangaParser(context, MangaParserSource.OTRUYEN, 24) {
