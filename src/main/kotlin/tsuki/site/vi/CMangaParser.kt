@@ -3,6 +3,7 @@ package tsuki.site.vi
 import androidx.collection.ArrayMap
 import androidx.collection.arraySetOf
 import org.json.JSONObject
+import tsuki.Broken
 import tsuki.MangaLoaderContext
 import tsuki.MangaParserAuthProvider
 import tsuki.MangaSourceParser
@@ -18,6 +19,7 @@ import java.util.*
 
 private const val PAGE_SIZE = 20
 
+@Broken("Web đóng cửa")
 @MangaSourceParser("CMANGA", "CManga", "vi")
 internal class CMangaParser(context: MangaLoaderContext) :
     PagedMangaParser(context, MangaParserSource.CMANGA, PAGE_SIZE), MangaParserAuthProvider {
