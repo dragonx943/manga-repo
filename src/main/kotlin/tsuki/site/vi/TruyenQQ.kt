@@ -1,9 +1,6 @@
 package tsuki.site.vi
 
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import tsuki.Broken
+import okhttp3.OkHttpClient
 import tsuki.MangaLoaderContext
 import tsuki.MangaSourceParser
 import tsuki.config.ConfigKey
@@ -15,12 +12,11 @@ import tsuki.util.*
 import java.text.SimpleDateFormat
 import java.util.*
 
-@Broken("Hỏng hết filters")
 @MangaSourceParser("TRUYENQQ", "TruyenQQ", "vi")
 internal class TruyenQQ(context: MangaLoaderContext):
 	PagedMangaParser(context, MangaParserSource.TRUYENQQ, 42) {
 
-	private val noProxyClient: okhttp3.OkHttpClient
+	private val client: OkHttpClient
 		get() = context.httpClient.newBuilder()
 			.apply {
 				interceptors().clear()
@@ -30,14 +26,14 @@ internal class TruyenQQ(context: MangaLoaderContext):
 			.build()
 
 	override val webClient: WebClient
-		get() = OkHttpWebClient(noProxyClient, source)
+		get() = OkHttpWebClient(client, source)
 
 	override fun intercept(chain: okhttp3.Interceptor.Chain): okhttp3.Response {
 		val request = chain.request()
 		val host = request.url.host
 		if (host.contains("truyenqq", true) ||
 			host.contains("docqq", true)) {
-			return noProxyClient.newCall(request).execute()
+			return client.newCall(request).execute()
 		}
 		return super.intercept(chain)
 	}
@@ -63,7 +59,10 @@ internal class TruyenQQ(context: MangaLoaderContext):
 
 	override suspend fun getFilterOptions() = MangaListFilterOptions(
 		availableTags = fetchAvailableTags(),
-		availableStates = EnumSet.of(MangaState.ONGOING, MangaState.FINISHED),
+		availableStates = EnumSet.of(
+			MangaState.ONGOING,
+			MangaState.FINISHED,
+		),
 		availableContentTypes = EnumSet.of(
 			ContentType.MANGA,
 			ContentType.MANHWA,
@@ -74,79 +73,55 @@ internal class TruyenQQ(context: MangaLoaderContext):
 	)
 
 	override suspend fun getListPage(page: Int, order: SortOrder, filter: MangaListFilter): List<Manga> {
-		val url = when {
-			!filter.query.isNullOrEmpty() -> {
-				buildString {
-					append("https://")
-					append(domain)
-					append("/tim-kiem/trang-$page.html")
-					append("?q=")
-					append((filter.query.urlEncoded()))
-				}
+		val url = urlBuilder().host(domain)
+
+		// keyword
+		if (!filter.query.isNullOrEmpty()) {
+			url.addEncodedPathSegments("tim-kiem/trang-$page")
+			url.addEncodedQueryParameter("q", filter.query.splitByWhitespace().joinToString("%20") { it })
+		} else {
+			url.addEncodedPathSegments("tim-kiem-nang-cao/trang-$page")
+
+			// country
+			val country = when (filter.types.oneOrThrowIfMany()) {
+				ContentType.MANHUA -> 1
+				ContentType.OTHER -> 2 // Việt Nam
+				ContentType.MANHWA -> 3
+				ContentType.MANGA -> 4
+				ContentType.COMICS -> 5
+				else -> 0 // Tất cả
 			}
+			url.addEncodedQueryParameter("country", country.toString())
 
-			else -> {
-				buildString {
-					append("https://")
-					append(domain)
-					append("/tim-kiem-nang-cao/trang-")
-					append(page.toString())
-					append(".html?country=")
-
-					if (filter.types.isNotEmpty()) {
-						filter.types.oneOrThrowIfMany()?.let {
-							append(
-								when (it) {
-									ContentType.MANHUA -> '1'
-									ContentType.OTHER -> '2' // Việt Nam
-									ContentType.MANHWA -> '3'
-									ContentType.MANGA -> '4'
-									ContentType.COMICS -> '5'
-									else -> '0' // all
-								},
-							)
-						}
-					} else append('0')
-
-
-					append("&sort=")
-					when (order) {
-						SortOrder.NEWEST -> append('0')
-						SortOrder.NEWEST_ASC -> append('1')
-						SortOrder.UPDATED -> append('2')
-						SortOrder.UPDATED_ASC -> append('3')
-						SortOrder.POPULARITY -> append('4')
-						SortOrder.POPULARITY_ASC -> append('5')
-						else -> append('2')
-					}
-
-					append("&status=")
-					if (filter.states.isNotEmpty()) {
-						filter.states.oneOrThrowIfMany()?.let {
-
-							append(
-								when (it) {
-									MangaState.ONGOING -> '0'
-									MangaState.FINISHED -> '1'
-									else -> "-1"
-								},
-							)
-						}
-					} else {
-						append("-1")
-					}
-
-					append("&category=")
-					append(filter.tags.joinToString(separator = ",") { it.key })
-
-					append("&notcategory=")
-					append(filter.tagsExclude.joinToString(separator = ",") { it.key })
-
-					append("&minchapter=0")
-				}
+			// Order
+			val order = when (order) {
+				SortOrder.UPDATED_ASC -> 3
+				SortOrder.NEWEST -> 0
+				SortOrder.NEWEST_ASC -> 1
+				SortOrder.POPULARITY -> 4
+				SortOrder.POPULARITY_ASC -> 5
+				else -> 2 // UPDATED
 			}
+			url.addEncodedQueryParameter("sort", order.toString())
+
+			// Status
+			val status = when (filter.states.oneOrThrowIfMany()) {
+				MangaState.ONGOING -> 0
+				MangaState.FINISHED -> 1
+				else -> -1
+			}
+			url.addEncodedQueryParameter("status", status.toString())
+
+			// Genres
+			url.addEncodedQueryParameter("category", filter.tags.joinToString(separator = ",") { it.key })
+
+			// Exclude genres
+			url.addEncodedQueryParameter("notcategory", filter.tagsExclude.joinToString(separator = ",") { it.key })
+
+			// Other
+			url.addEncodedQueryParameter("minchapter", 0.toString())
 		}
-		val doc = webClient.httpGet(url).parseHtml()
+		val doc = webClient.httpGet(url.build()).parseHtml()
 		return doc.requireElementById("main_homepage").select("li").map { li ->
 			val href = li.selectFirstOrThrow("a").attrAsRelativeUrl("href")
 			Manga(
@@ -161,17 +136,6 @@ internal class TruyenQQ(context: MangaLoaderContext):
 				tags = emptySet(),
 				state = null,
 				authors = emptySet(),
-				source = source,
-			)
-		}
-	}
-
-	private suspend fun fetchAvailableTags(): Set<MangaTag> {
-		val doc = webClient.httpGet("https://$domain/tim-kiem-nang-cao.html").parseHtml()
-		return doc.select(".advsearch-form div.genre-item").mapToSet {
-			MangaTag(
-				key = it.selectFirstOrThrow("span").attr("data-id"),
-				title = it.text(),
 				source = source,
 			)
 		}
@@ -198,7 +162,7 @@ internal class TruyenQQ(context: MangaLoaderContext):
 			},
 			authors = setOfNotNull(author),
 			description = doc.selectFirst(".story-detail-info")?.html(),
-			chapters = doc.select("div.list_chapter div.works-chapter-item").mapChapters(reversed = true) { i, div ->
+			chapters = doc.select("div.list_chapter div.works-chapter-item").mapChapters(true) { i, div ->
 				val a = div.selectFirstOrThrow("a")
 				val href = a.attrAsRelativeUrl("href")
 				val name = a.text()
@@ -219,15 +183,6 @@ internal class TruyenQQ(context: MangaLoaderContext):
 	}
 
 	override suspend fun getPages(chapter: MangaChapter): List<MangaPage> {
-		// Apply rate limiting specifically for fetching pages
-		pagesRequestMutex.withLock {
-			val currentTime = System.currentTimeMillis()
-			val timeSinceLastRequest = currentTime - lastPagesRequestTime
-			if (timeSinceLastRequest < PAGES_REQUEST_DELAY_MS) {
-				delay(PAGES_REQUEST_DELAY_MS - timeSinceLastRequest)
-			}
-			lastPagesRequestTime = System.currentTimeMillis()
-		}
 		val fullUrl = chapter.url.toAbsoluteUrl(domain)
 		val doc = webClient.httpGet(fullUrl).parseHtml()
 		val root = doc.body().selectFirstOrThrow(".chapter_content")
@@ -243,10 +198,16 @@ internal class TruyenQQ(context: MangaLoaderContext):
 		}
 	}
 
-	companion object {
-		private const val PAGES_REQUEST_DELAY_MS = 5000L
-		private val pagesRequestMutex = Mutex()
-		private var lastPagesRequestTime = 0L
+	private suspend fun fetchAvailableTags(): Set<MangaTag> {
+		val url = urlBuilder().host(domain).addPathSegment("tim-kiem-nang-cao")
+		val doc = webClient.httpGet(url.build()).parseHtml()
+		return doc.select(".advsearch-form div.genre-item").mapToSet {
+			MangaTag(
+				key = it.selectFirstOrThrow("span").attr("data-id"),
+				title = it.text(),
+				source = source,
+			)
+		}
 	}
 }
 
