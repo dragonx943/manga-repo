@@ -1,4 +1,4 @@
-package tsuki.site.vi
+package tsuki.site.vi.yurigarden
 
 import androidx.collection.arraySetOf
 import kotlinx.coroutines.async
@@ -9,7 +9,6 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Interceptor
 import okhttp3.Response
-import okio.IOException
 import org.json.JSONArray
 import org.json.JSONObject
 import tsuki.Broken
@@ -18,22 +17,46 @@ import tsuki.bitmap.Bitmap
 import tsuki.bitmap.Rect
 import tsuki.config.ConfigKey
 import tsuki.core.PagedMangaParser
-import tsuki.network.UserAgents
-import tsuki.model.*
+import tsuki.model.ContentRating
+import tsuki.model.Manga
+import tsuki.model.MangaChapter
+import tsuki.model.MangaListFilter
+import tsuki.model.MangaListFilterCapabilities
+import tsuki.model.MangaListFilterOptions
+import tsuki.model.MangaPage
+import tsuki.model.MangaParserSource
+import tsuki.model.MangaState
+import tsuki.model.MangaTag
+import tsuki.model.RATING_UNKNOWN
+import tsuki.model.SortOrder
 import tsuki.network.CommonHeaders
 import tsuki.network.OkHttpWebClient
-import tsuki.util.*
-import tsuki.util.json.*
+import tsuki.util.generateUid
+import tsuki.util.json.asTypedList
+import tsuki.util.json.getBooleanOrDefault
+import tsuki.util.json.getFloatOrDefault
+import tsuki.util.json.mapJSON
+import tsuki.util.mapChapters
+import tsuki.util.mapNotNullToSet
+import tsuki.util.oneOrThrowIfMany
+import tsuki.util.parseJson
+import tsuki.util.parseJsonArray
+import tsuki.util.rateLimit
 import tsuki.util.suspendlazy.suspendLazy
-import java.util.*
+import tsuki.util.toTitleCase
+import tsuki.util.urlBuilder
+import tsuki.util.urlEncoded
+import java.util.EnumSet
+import java.util.HashSet
+import kotlin.collections.orEmpty
 import kotlin.time.Duration.Companion.seconds
 
 @Broken("Lười sửa web vl, thằng nào tạo issue thì mới sửa!")
 internal abstract class YuriGardenParser(
-	context: MangaLoaderContext,
-	source: MangaParserSource,
-	domain: String,
-	protected val isR18Enable: Boolean = false
+    context: MangaLoaderContext,
+    source: MangaParserSource,
+    domain: String,
+    protected val isR18Enable: Boolean = false
 ) : PagedMangaParser(context, source, 18) {
 
 	private val availableTags = suspendLazy(initializer = ::fetchTags)
@@ -43,17 +66,17 @@ internal abstract class YuriGardenParser(
 	private val cdnSuffix = "db.$domain/storage/v1/object/public/yuri-garden-store"
 
 	override val webClient = OkHttpWebClient(
-		context.httpClient.newBuilder()
-			.rateLimit(20, 60.seconds)
-			.build(),
-		source,
-	)
+        context.httpClient.newBuilder()
+            .rateLimit(20, 60.seconds)
+            .build(),
+        source,
+    )
 
 	override fun getRequestHeaders(): Headers = Headers.Builder()
 		.add(CommonHeaders.REFERER, "https://$domain/")
 		.add(CommonHeaders.ORIGIN, "https://$domain")
 		.add(CommonHeaders.X_APP_ORIGIN, "https://$domain")
-		.add(CommonHeaders.USER_AGENT, UserAgents.KOTATSU)
+		.add(CommonHeaders.USER_AGENT, "Usagi/1.0 (Linux aarch64; Android 16;;; vi_VN) okhttp/5.3.2")
 		.build()
 
 	override fun onCreateConfig(keys: MutableCollection<ConfigKey<*>>) {
@@ -68,23 +91,23 @@ internal abstract class YuriGardenParser(
 
 	override val filterCapabilities: MangaListFilterCapabilities
 		get() = MangaListFilterCapabilities(
-			isSearchSupported = true,
-			isMultipleTagsSupported = true,
-			isSearchWithFiltersSupported = true,
-			isAuthorSearchSupported = true,
-		)
+            isSearchSupported = true,
+            isMultipleTagsSupported = true,
+            isSearchWithFiltersSupported = true,
+            isAuthorSearchSupported = true,
+        )
 
 	override suspend fun getFilterOptions(): MangaListFilterOptions {
 		return MangaListFilterOptions(
-			availableTags = availableTags.get(),
-			availableStates = EnumSet.of(
-				MangaState.ONGOING,
-				MangaState.FINISHED,
-				MangaState.ABANDONED,
-				MangaState.PAUSED,
-				MangaState.UPCOMING,
-			),
-		)
+            availableTags = availableTags.get(),
+            availableStates = EnumSet.of(
+                MangaState.ONGOING,
+                MangaState.FINISHED,
+                MangaState.ABANDONED,
+                MangaState.PAUSED,
+                MangaState.UPCOMING,
+            ),
+        )
 	}
 
 	override suspend fun getListPage(page: Int, order: SortOrder, filter: MangaListFilter): List<Manga> {
@@ -159,48 +182,53 @@ internal abstract class YuriGardenParser(
 				}
 			}.orEmpty()
 
-			Manga(
-				id = generateUid(id),
-				url = "/comics/$id",
-				publicUrl = "https://$domain/comic/$id",
-				title = jo.getString("title"),
-				altTitles = altTitles,
-				coverUrl = if (thumbnail.startsWith("comics/"))
+            Manga(
+                id = generateUid(id),
+                url = "/comics/$id",
+                publicUrl = "https://$domain/comic/$id",
+                title = jo.getString("title"),
+                altTitles = altTitles,
+                coverUrl = if (thumbnail.startsWith("comics/"))
                     "https://$cdnSuffix/$thumbnail" else thumbnail,
-				largeCoverUrl = if (thumbnail.startsWith("comics/"))
+                largeCoverUrl = if (thumbnail.startsWith("comics/"))
                     "https://$cdnSuffix/$thumbnail" else thumbnail,
-				authors = emptySet(),
-				tags = tags,
-				state = when(jo.optString("status")) {
-					"ongoing" -> MangaState.ONGOING
-					"completed" -> MangaState.FINISHED
-					"hiatus" -> MangaState.PAUSED
-					"cancelled" -> MangaState.ABANDONED
-					"oncoming" -> MangaState.UPCOMING
-					else -> null
-				},
-				description = jo.optString("description").orEmpty(),
-				contentRating = if (jo.getBooleanOrDefault("r18", false)) ContentRating.ADULT else ContentRating.SUGGESTIVE,
-				source = source,
-				rating = RATING_UNKNOWN,
-			)
+                authors = emptySet(),
+                tags = tags,
+                state = when (jo.optString("status")) {
+                    "ongoing" -> MangaState.ONGOING
+                    "completed" -> MangaState.FINISHED
+                    "hiatus" -> MangaState.PAUSED
+                    "cancelled" -> MangaState.ABANDONED
+                    "oncoming" -> MangaState.UPCOMING
+                    else -> null
+                },
+                description = jo.optString("description").orEmpty(),
+                contentRating = if (jo.getBooleanOrDefault(
+                        "r18",
+                        false
+                    )
+                ) ContentRating.ADULT else ContentRating.SUGGESTIVE,
+                source = source,
+                rating = RATING_UNKNOWN,
+            )
 		}
 	}
 
 	override suspend fun getDetails(manga: Manga): Manga = coroutineScope {
-		val id = manga.url.substringAfter("/comics/")
-		val json = webClient.httpGet("https://$apiSuffix/comics/${id}").parseJson()
+        val id = manga.url.substringAfter("/comics/")
+        val json = webClient.httpGet("https://$apiSuffix/comics/${id}").parseJson()
 
-        val authors = json.optJSONArray("authors")?.asTypedList<JSONObject>()?.mapTo(HashSet()) { jo ->
-            jo.getString("name") + " (${jo.getLong("id")})"
-        }.orEmpty()
+        val authors =
+            json.optJSONArray("authors")?.asTypedList<JSONObject>()?.mapTo(HashSet()) { jo ->
+                jo.getString("name") + " (${jo.getLong("id")})"
+            }.orEmpty()
 
         val altTitles = json.optJSONArray("anotherNames")
             ?.asTypedList<String>()
             ?.toSet()
             ?: emptySet()
 
-		val description = json.getString("description")
+        val description = json.getString("description")
         val team = json.optJSONArray("groups")?.asTypedList<JSONObject>()?.flatMap { group ->
             group.optJSONArray("teams")
                 ?.asTypedList<JSONObject>()
@@ -210,31 +238,31 @@ internal abstract class YuriGardenParser(
                 ?: emptyList()
         }?.joinToString(", ").orEmpty()
 
-		val chaptersDeferred = async {
-			webClient.httpGet("https://$apiSuffix/chapters/comic/${id}").parseJsonArray()
-		}
+        val chaptersDeferred = async {
+            webClient.httpGet("https://$apiSuffix/chapters/comic/${id}").parseJsonArray()
+        }
 
-		manga.copy(
-			altTitles = altTitles,
-			authors = authors,
+        manga.copy(
+            altTitles = altTitles,
+            authors = authors,
             description = description,
-			// Fix issue with manga id 855
-			chapters = chaptersDeferred.await().mapChapters { _, jo ->
-				val chapId = jo.getLong("id")
-				MangaChapter(
-					id = generateUid(chapId),
-					title = jo.getString("name"),
-					number = jo.getFloatOrDefault("order", 0f),
-					volume = jo.optInt("volume", 0),
-					url = "$chapId",
-					scanlator = team,
-					uploadDate = jo.getLong("lastUpdated"),
-					branch = null,
-					source = source,
-				)
-			}.sortedBy { it.number },
-		)
-	}
+            // Fix issue with manga id 855
+            chapters = chaptersDeferred.await().mapChapters { _, jo ->
+                val chapId = jo.getLong("id")
+                MangaChapter(
+                    id = generateUid(chapId),
+                    title = jo.getString("name"),
+                    number = jo.getFloatOrDefault("order", 0f),
+                    volume = jo.optInt("volume", 0),
+                    url = "$chapId",
+                    scanlator = team,
+                    uploadDate = jo.getLong("lastUpdated"),
+                    branch = null,
+                    source = source,
+                )
+            }.sortedBy { it.number },
+        )
+    }
 
 	override suspend fun getPages(chapter: MangaChapter): List<MangaPage> {
 		val json = webClient.httpGet("https://$apiSuffix/chapters/${chapter.url}").parseJson()
@@ -251,20 +279,20 @@ internal abstract class YuriGardenParser(
 					}
 				}
 
-				MangaPage(
-					id = generateUid(index.toLong()),
-					url = url.build().toString(),
-					preview = null,
-					source = source,
-				)
+                MangaPage(
+                    id = generateUid(index.toLong()),
+                    url = url.build().toString(),
+                    preview = null,
+                    source = source,
+                )
 			} else {
 				val url = rawUrl.toHttpUrlOrNull()?.toString() ?: rawUrl
-				MangaPage(
-					id = generateUid(index.toLong()),
-					url = url,
-					preview = null,
-					source = source,
-				)
+                MangaPage(
+                    id = generateUid(index.toLong()),
+                    url = url,
+                    preview = null,
+                    source = source,
+                )
 			}
 		}
 	}
@@ -289,7 +317,7 @@ internal abstract class YuriGardenParser(
 		""".trimIndent()
 
 		val result = context.evaluateJs(url, js)
-			?: throw IOException("Oops! Đã xảy ra lỗi khi biên dịch")
+			?: throw okio.IOException("Oops! Đã xảy ra lỗi khi biên dịch")
 		val arr = JSONArray(result)
 
 		val out = context.createBitmap(bitmap.width, bitmap.height)
@@ -313,12 +341,11 @@ internal abstract class YuriGardenParser(
 		val genres = json.getJSONObject("genres")
 		return genres.keys().asSequence().mapTo(arraySetOf()) { key ->
 			val genre = genres.getJSONObject(key)
-			MangaTag(
-				title = genre.getString("name").toTitleCase(sourceLocale),
-				key = genre.getString("slug"),
-				source = source,
-			)
+            MangaTag(
+                title = genre.getString("name").toTitleCase(sourceLocale),
+                key = genre.getString("slug"),
+                source = source,
+            )
 		}
 	}
 }
-

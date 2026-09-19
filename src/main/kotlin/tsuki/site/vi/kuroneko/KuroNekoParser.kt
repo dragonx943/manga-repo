@@ -1,36 +1,64 @@
-package tsuki.site.vi
+package tsuki.site.vi.kuroneko
 
+import okhttp3.HttpUrl
 import okhttp3.Interceptor
-import okhttp3.Response
-import tsuki.MangaLoaderContext
-import tsuki.MangaSourceParser
-import tsuki.config.ConfigKey
-import tsuki.core.PagedMangaParser
-import tsuki.model.*
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import org.json.JSONObject
 import org.jsoup.Jsoup
+import tsuki.MangaLoaderContext
+import tsuki.config.ConfigKey
+import tsuki.core.PagedMangaParser
+import tsuki.model.ContentRating
+import tsuki.model.Manga
+import tsuki.model.MangaChapter
+import tsuki.model.MangaListFilter
+import tsuki.model.MangaListFilterCapabilities
+import tsuki.model.MangaListFilterOptions
+import tsuki.model.MangaPage
+import tsuki.model.MangaParserSource
+import tsuki.model.MangaState
+import tsuki.model.MangaTag
+import tsuki.model.RATING_UNKNOWN
+import tsuki.model.SortOrder
 import tsuki.network.CommonHeaders
 import tsuki.network.OkHttpWebClient
-import tsuki.util.*
-import java.util.*
+import tsuki.network.UserAgents
+import tsuki.util.attrAsRelativeUrl
+import tsuki.util.attrOrNull
+import tsuki.util.findGroupValue
+import tsuki.util.generateUid
+import tsuki.util.mapChapters
+import tsuki.util.mapNotNullToSet
+import tsuki.util.mapToSet
+import tsuki.util.parseFailed
+import tsuki.util.parseHtml
+import tsuki.util.rateLimit
+import tsuki.util.removeSuffix
+import tsuki.util.selectLast
+import tsuki.util.textOrNull
+import tsuki.util.toAbsoluteUrl
+import tsuki.util.urlEncoded
+import java.util.Calendar
+import java.util.EnumSet
 import kotlin.math.pow
 import kotlin.time.Duration.Companion.seconds
 
-@MangaSourceParser("KURONEKO", "Kuro Neko / vi-Hentai", "vi", type = ContentType.HENTAI)
-internal class KuroNeko(context: MangaLoaderContext):
-	PagedMangaParser(context, MangaParserSource.KURONEKO, 30) {
+internal abstract class KuroNekoParser(
+	context: MangaLoaderContext,
+	source: MangaParserSource,
+): PagedMangaParser(context, source, 30) {
 
-	override val configKeyDomain = ConfigKey.Domain("vi-hentai.pro", "vi-hentai.moe")
+	override val userAgentKey = ConfigKey.UserAgent(UserAgents.KOTATSU)
 
 	override val webClient = OkHttpWebClient(
-		context.httpClient.newBuilder()
-			.rateLimit(10, 60.seconds)
-			.build(),
-		source,
-	)
+        context.httpClient.newBuilder()
+            .rateLimit(20, 60.seconds)
+            .build(),
+        source,
+    )
 
 	override fun onCreateConfig(keys: MutableCollection<ConfigKey<*>>) {
 		super.onCreateConfig(keys)
@@ -42,22 +70,23 @@ internal class KuroNeko(context: MangaLoaderContext):
 		SortOrder.ALPHABETICAL_DESC,
 		SortOrder.UPDATED,
 		SortOrder.NEWEST,
+		SortOrder.NEWEST_ASC,
 		SortOrder.POPULARITY,
 	)
 
 	override val filterCapabilities: MangaListFilterCapabilities
 		get() = MangaListFilterCapabilities(
-			isSearchSupported = true,
-			isMultipleTagsSupported = true,
-			isTagsExclusionSupported = true,
-			isSearchWithFiltersSupported = true,
-			isAuthorSearchSupported = true,
-		)
+            isSearchSupported = true,
+            isMultipleTagsSupported = true,
+            isTagsExclusionSupported = true,
+            isSearchWithFiltersSupported = true,
+            isAuthorSearchSupported = true,
+        )
 
 	override suspend fun getFilterOptions() = MangaListFilterOptions(
-		availableTags = availableTags(),
-		availableStates = EnumSet.of(MangaState.ONGOING, MangaState.FINISHED),
-	)
+        availableTags = availableTags(),
+        availableStates = EnumSet.of(MangaState.ONGOING, MangaState.FINISHED),
+    )
 
 	override suspend fun getListPage(page: Int, order: SortOrder, filter: MangaListFilter): List<Manga> {
 		val url = buildString {
@@ -67,7 +96,7 @@ internal class KuroNeko(context: MangaLoaderContext):
 				append(domain)
 
 				append("/tac-gia/")
-				append((filter.author?.lowercase().orEmpty() ?: "").replace(" ", "-"))
+				append(filter.author?.lowercase().orEmpty().replace(" ", "-"))
 
 				append("?sort=")
 				append(
@@ -75,6 +104,7 @@ internal class KuroNeko(context: MangaLoaderContext):
 						SortOrder.POPULARITY -> "-views"
 						SortOrder.UPDATED -> "-updated_at"
 						SortOrder.NEWEST -> "-created_at"
+						SortOrder.NEWEST_ASC -> "created_at"
 						SortOrder.ALPHABETICAL -> "name"
 						SortOrder.ALPHABETICAL_DESC -> "-name"
 						else -> "-updated_at"
@@ -154,20 +184,20 @@ internal class KuroNeko(context: MangaLoaderContext):
 				val coverUrl = div.selectFirst("div.cover")?.attr("style")
 					?.substringAfter("url('")?.substringBefore("')")
 
-				Manga(
-					id = generateUid(href),
-					title = div.select("div.p-2 a.text-ellipsis").text(),
-					altTitles = emptySet(),
-					url = href,
-					publicUrl = href.toAbsoluteUrl(domain),
-					rating = RATING_UNKNOWN,
-					contentRating = ContentRating.ADULT,
-					coverUrl = coverUrl.orEmpty(),
-					tags = setOf(),
-					state = null,
-					authors = emptySet(),
-					source = source,
-				)
+                Manga(
+                    id = generateUid(href),
+                    title = div.select("div.p-2 a.text-ellipsis").text(),
+                    altTitles = emptySet(),
+                    url = href,
+                    publicUrl = href.toAbsoluteUrl(domain),
+                    rating = RATING_UNKNOWN,
+                    contentRating = ContentRating.ADULT,
+                    coverUrl = coverUrl.orEmpty(),
+                    tags = setOf(),
+                    state = null,
+                    authors = emptySet(),
+                    source = source,
+                )
 			}
 	}
 
@@ -183,11 +213,11 @@ internal class KuroNeko(context: MangaLoaderContext):
 				else -> null
 			},
 			tags = root.select("div.mt-2:contains(Thể loại) a.bg-gray-500").mapToSet { a ->
-				MangaTag(
-					key = a.attr("href").removeSuffix('/').substringAfterLast('/'),
-					title = a.text(),
-					source = source,
-				)
+                MangaTag(
+                    key = a.attr("href").removeSuffix('/').substringAfterLast('/'),
+                    title = a.text(),
+                    source = source,
+                )
 			},
 			authors = setOfNotNull(author),
 			description = root.selectFirst("meta[name=description]")?.attrOrNull("content"),
@@ -197,17 +227,17 @@ internal class KuroNeko(context: MangaLoaderContext):
 				val name = a.text().ifEmpty { li.selectFirst("span.truncate")?.text().orEmpty() }
 				val dateText = li.selectFirst("span.timeago")?.attr("datetime").orEmpty()
 				val scanlator = root.selectFirst("div.mt-2:contains(Nhóm dịch) span a")?.textOrNull()
-				MangaChapter(
-					id = generateUid(href),
-					title = name,
-					number = i.toFloat(),
-					volume = 0,
-					url = href,
-					scanlator = scanlator,
-					uploadDate = parseDateTime(dateText),
-					branch = null,
-					source = source,
-				)
+                MangaChapter(
+                    id = generateUid(href),
+                    title = name,
+                    number = i.toFloat(),
+                    volume = 0,
+                    url = href,
+                    scanlator = scanlator,
+                    uploadDate = parseDateTime(dateText),
+                    branch = null,
+                    source = source,
+                )
 			},
 		)
 	}
@@ -219,12 +249,12 @@ internal class KuroNeko(context: MangaLoaderContext):
 			?: throw Exception("Could not find packed script with image data")
 
 		return extractImageUrls(packedScript).map {
-			MangaPage(
-				id = generateUid(it),
-				url = it,
-				preview = null,
-				source = source,
-			)
+            MangaPage(
+                id = generateUid(it),
+                url = it,
+                preview = null,
+                source = source,
+            )
 		}
 	}
 
@@ -265,8 +295,7 @@ internal class KuroNeko(context: MangaLoaderContext):
 	}
 
 	/* Thanks to Gemini for this crazy idea */
-	private fun bypassGateKeeper(chain: Interceptor.Chain, html: String,
-		originalUrl: okhttp3.HttpUrl, newRequest: Request
+	private fun bypassGateKeeper(chain: Interceptor.Chain, html: String, originalUrl: HttpUrl, newRequest: Request
 	): Boolean {
 		val doc = Jsoup.parse(html, originalUrl.toString())
 		val element = doc.selectFirst("[wire:id][wire:initial-data]") ?: return false
@@ -308,11 +337,11 @@ internal class KuroNeko(context: MangaLoaderContext):
 		return doc.select("div.grid.grid-cols-3 label").mapNotNullToSet { label ->
 			val attr = label.attr("@click")
 			val number = attr.findGroupValue(regex) ?: return@mapNotNullToSet null
-			MangaTag(
-				key = number,
-				title = label.text(),
-				source = source,
-			)
+            MangaTag(
+                key = number,
+                title = label.text(),
+                source = source,
+            )
 		}.toSet()
 	}
 
@@ -367,4 +396,3 @@ internal class KuroNeko(context: MangaLoaderContext):
 		private const val BASE_CHARSET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+/"
 	}
 }
-
