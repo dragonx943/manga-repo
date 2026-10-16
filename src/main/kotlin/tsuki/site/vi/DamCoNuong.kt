@@ -14,13 +14,14 @@ import tsuki.util.*
 import tsuki.util.suspendlazy.getOrNull
 import tsuki.util.suspendlazy.suspendLazy
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.EnumSet
+import java.util.Locale
 
 @MangaSourceParser("DAMCONUONG", "Dâm Cô Nương", "vi", type = ContentType.HENTAI)
 internal class DamCoNuong(context: MangaLoaderContext) :
 	PagedMangaParser(context, MangaParserSource.DAMCONUONG, 30) {
 
-	override val configKeyDomain = ConfigKey.Domain("damconuong.sbs")
+	override val configKeyDomain = ConfigKey.Domain("damconuong.win")
 
 	private val availableTags = suspendLazy(initializer = ::fetchTags)
 
@@ -166,16 +167,14 @@ internal class DamCoNuong(context: MangaLoaderContext) :
 			else -> MangaState.FINISHED
 		}
 
-		val chapterListDiv = doc.selectFirst("ul#chapterList")
-			?: throw ParseException("Chapters list not found!", url)
-
-		val scanlator = doc.select("img[src*=avatar.png]").attr("alt")
-		val chapterLinks = chapterListDiv.select("a.block")
-		val chapters = chapterLinks.mapChapters(reversed = true) { index, a ->
-			val title = a.selectFirst("span.text-ellipsis")?.textOrNull()
+		val chapterList = doc.select("ul#md-chapter-list li")
+		val scanlator = doc.select("img.avatar-frame-img").attr("alt")
+		val chapters = chapterList.mapChapters(reversed = true) { index, li ->
+			val a = li.selectFirst("a.md-ch")
+				?: throw ParseException("Cấu trúc web đã bị thay đổi, hết cứu :P", url)
+			val title = li.selectFirst("span.md-ch-title")?.textOrNull()
 			val href = a.attrAsRelativeUrl("href")
-			val uploadDate = a.selectFirst("span.ml-2.whitespace-nowrap")?.text()
-
+			val uploadDate = li.selectFirst("span.md-ch-meta span:first-child")?.text()
 			MangaChapter(
 				id = generateUid(href),
 				title = title,
@@ -197,20 +196,20 @@ internal class DamCoNuong(context: MangaLoaderContext) :
 		)
 	}
 
-    override suspend fun getPages(chapter: MangaChapter): List<MangaPage> {
-        val doc = webClient.httpGet(chapter.url.toAbsoluteUrl(domain)).parseHtml()
-        return doc.select("div#chapter-content img").map { img ->
-            val url = resolveImageUrl(img, chapter)
-            MangaPage(
-                id = generateUid(url),
-                url = url,
-                preview = null,
-                source = source,
-            )
-        }
-    }
+	override suspend fun getPages(chapter: MangaChapter): List<MangaPage> {
+		val doc = webClient.httpGet(chapter.url.toAbsoluteUrl(domain)).parseHtml()
+		return doc.select("div#chapter-content img").map { img ->
+			val url = resolveImageUrl(img, chapter)
+			MangaPage(
+				id = generateUid(url),
+				url = url,
+				preview = null,
+				source = source,
+			)
+		}
+	}
 
-    private fun parseChapterDate(date: String?): Long {
+	private fun parseChapterDate(date: String?): Long {
 		if (date == null) return 0
 		return when {
 			date.contains("giây trước") -> System.currentTimeMillis() - date.removeSuffix(" giây trước").toLong() * 1000
@@ -262,8 +261,7 @@ internal class DamCoNuong(context: MangaLoaderContext) :
 
 	private fun isValidImage(url: String): Boolean {
 		return url.isNotBlank()
-			&& !url.endsWith(".gif", ignoreCase = true)
-			&& url.startsWith("https")
+				&& !url.endsWith(".gif", ignoreCase = true)
+				&& url.startsWith("https")
 	}
 }
-
