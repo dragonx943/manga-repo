@@ -205,7 +205,7 @@ internal class CuuTruyenParser(context: MangaLoaderContext) :
 
 		val newTags = tags.filter { it.key != "da-hoan-thanh" && it.key != "dang-tien-hanh" }.toSet()
 		val author = json.optJSONObject("author")?.getStringOrNull("name")?.substringBefore(',')?.nullIfEmpty()
-		val title = json.getStringOrNull("name").trim() ?: manga.title
+		val title = json.getStringOrNull("name")?.trim() ?: manga.title
 		val team = json.optJSONObject("team")?.getStringOrNull("name")
 
 		manga.copy(
