@@ -164,7 +164,8 @@ internal class CuuTruyenParser(context: MangaLoaderContext) :
 				id = generateUid(jo.getLong("id")),
 				url = "$apiSuffix/mangas/${jo.getLong("id")}",
 				publicUrl = "https://$domain/mangas/${jo.getLong("id")}",
-				title = jo.getString("name"),
+				// Mấy thằng L gõ tên truyện cũng để thừa dấu space, bực vãi L
+				title = jo.getString("name").trim(),
 				altTitles = emptySet(),
 				coverUrl = coverUrl,
 				largeCoverUrl = null,
@@ -204,7 +205,7 @@ internal class CuuTruyenParser(context: MangaLoaderContext) :
 
 		val newTags = tags.filter { it.key != "da-hoan-thanh" && it.key != "dang-tien-hanh" }.toSet()
 		val author = json.optJSONObject("author")?.getStringOrNull("name")?.substringBefore(',')?.nullIfEmpty()
-		val title = json.getStringOrNull("name") ?: manga.title
+		val title = json.getStringOrNull("name").trim() ?: manga.title
 		val team = json.optJSONObject("team")?.getStringOrNull("name")
 
 		manga.copy(
